@@ -11,8 +11,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "itext.pdfocr.api.tests", "i
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "itext.pdfocr.tesseract4.tests", "itext.tests\itext.pdfocr.tesseract4.tests\itext.pdfocr.tesseract4.tests.csproj", "{50AC143E-76D9-4288-BFDD-9F8002716546}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ITextOCRTest", "ITextOCRTest\ITextOCRTest.csproj", "{966C27F4-168A-4BF1-BA0C-6BF860358C66}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -35,10 +33,6 @@ Global
 		{50AC143E-76D9-4288-BFDD-9F8002716546}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{50AC143E-76D9-4288-BFDD-9F8002716546}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{50AC143E-76D9-4288-BFDD-9F8002716546}.Release|Any CPU.Build.0 = Release|Any CPU
-		{966C27F4-168A-4BF1-BA0C-6BF860358C66}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{966C27F4-168A-4BF1-BA0C-6BF860358C66}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{966C27F4-168A-4BF1-BA0C-6BF860358C66}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{966C27F4-168A-4BF1-BA0C-6BF860358C66}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
