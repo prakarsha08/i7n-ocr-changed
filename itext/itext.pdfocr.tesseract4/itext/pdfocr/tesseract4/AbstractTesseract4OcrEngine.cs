@@ -259,6 +259,38 @@ namespace iText.Pdfocr.Tesseract4 {
         /// input image
         /// <see cref="System.IO.FileInfo"/>
         /// </param>
+        /// <param name= "inputStream"></param>
+        /// input stream
+        /// <see cref="System.IO.Stream"/>
+        /// <returns>
+        /// 
+        /// <see cref="System.Collections.IDictionary{K, V}"/>
+        /// where key is
+        /// <see cref="int?"/>
+        /// representing the number of the page and value is
+        /// <see cref="System.Collections.IList{E}"/>
+        /// of
+        /// <see cref="iText.Pdfocr.TextInfo"/>
+        /// elements where each
+        /// <see cref="iText.Pdfocr.TextInfo"/>
+        /// element contains a word or a line and its 4
+        /// coordinates(bbox)
+        /// </returns>
+        public IDictionary<int, IList<TextInfo>> DoImageOcr(FileInfo input, Stream inputStream)
+        {
+            VerifyImageFormatValidity(input);
+            return ((AbstractTesseract4OcrEngine.TextInfoTesseractOcrResult)ProcessInputFiles(input, inputStream,  OutputFormat.HOCR
+                , new Tesseract4EventHelper())).GetTextInfos();  // New
+        }
+
+        /// <summary>
+        /// Reads data from the provided input image file and returns retrieved
+        /// data in the format described below.
+        /// </summary>
+        /// <param name="input">
+        /// input image
+        /// <see cref="System.IO.FileInfo"/>
+        /// </param>
         /// <param name="ocrProcessContext">ocr process context</param>
         /// <returns>
         /// 
@@ -477,6 +509,43 @@ namespace iText.Pdfocr.Tesseract4 {
         /// <param name="eventHelper">event helper</param>
         internal abstract void DoTesseractOcr(FileInfo inputImage, IList<FileInfo> outputFiles, OutputFormat outputFormat
             , int pageNumber, bool dispatchEvent, AbstractPdfOcrEventHelper eventHelper);
+ //\endcond
+
+//\cond DO_NOT_DOCUMENT
+        /// <summary>
+        /// Performs tesseract OCR using command line tool
+        /// or a wrapper for Tesseract OCR API.
+        /// </summary>
+        /// <remarks>
+        /// Performs tesseract OCR using command line tool
+        /// or a wrapper for Tesseract OCR API.
+        /// Please note that list of output files is accepted instead of a single file because
+        /// page number parameter is not respected in case of TIFF images not requiring preprocessing.
+        /// In other words, if the passed image is the TIFF image and according to the
+        /// <see cref="Tesseract4OcrEngineProperties"/>
+        /// no preprocessing is needed, each page of the TIFF image is OCRed and the number of output files in the list
+        /// is expected to be same as number of pages in the image, otherwise, only one file is expected
+        /// </remarks>
+        /// <param name="inputStream">
+        /// input image
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        /// <param name="outputFiles">
+        /// 
+        /// <see cref="System.Collections.IList{E}"/>
+        /// of output files
+        /// (one per each page)
+        /// </param>
+        /// <param name="outputFormat">
+        /// selected
+        /// <see cref="OutputFormat"/>
+        /// for tesseract
+        /// </param>
+        /// <param name="pageNumber">number of page to be processed</param>
+        /// <param name="dispatchEvent">indicates if event needs to be dispatched</param>
+        /// <param name="eventHelper">event helper</param>
+        internal abstract void DoTesseractOcr(Stream inputStream, IList<Stream> outputFiles, OutputFormat outputFormat
+            , int pageNumber, bool dispatchEvent, AbstractPdfOcrEventHelper eventHelper);
 //\endcond
 
 //\cond DO_NOT_DOCUMENT
@@ -594,6 +663,107 @@ namespace iText.Pdfocr.Tesseract4 {
             return result;
         }
 
+        /// <summary>Reads data from the provided input image file.</summary>
+        /// <param name="input">
+        /// input image
+        /// <see cref="System.IO.FileInfo"/>
+        /// </param>
+        /// <param name="inputStream">
+        /// input stream
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        /// <param name="outputFormat">
+        /// 
+        /// <see cref="OutputFormat"/>
+        /// for the result returned
+        /// by
+        /// <see cref="iText.Pdfocr.IOcrEngine"/>
+        /// </param>
+        /// <param name="eventHelper">event helper</param>
+        /// <returns>
+        /// 
+        /// <see cref="ITesseractOcrResult"/>
+        /// instance, either
+        /// <see cref="StringTesseractOcrResult"/>
+        /// if output format is TXT, or
+        /// <see cref="TextInfoTesseractOcrResult"/>
+        /// if the output format is HOCR
+        /// </returns>
+        private AbstractTesseract4OcrEngine.ITesseractOcrResult ProcessInputFiles(FileInfo input, Stream inputStream, OutputFormat outputFormat
+            , AbstractPdfOcrEventHelper eventHelper) // New
+        {
+            IDictionary<int, IList<TextInfo>> imageData = new LinkedDictionary<int, IList<TextInfo>>();
+            StringBuilder data = new StringBuilder();
+            IList<Stream> tempStreams = new List<Stream>();
+            AbstractTesseract4OcrEngine.ITesseractOcrResult result = null;
+            try
+            {
+                // image needs to be paginated only if it's tiff
+                // or preprocessing isn't required
+                int realNumOfPages = !ImagePreprocessingUtil.IsTiffImageForStream(inputStream) ? 1 : ImagePreprocessingUtil.GetNumberOfPageTiffForStream
+                    (inputStream);
+                int numOfPages = GetTesseract4OcrEngineProperties().IsPreprocessingImages() ? realNumOfPages : 1;
+                int numOfFiles = GetTesseract4OcrEngineProperties().IsPreprocessingImages() ? 1 : realNumOfPages;
+                for (int page = 1; page <= numOfPages; page++)
+                {
+                    String extension = outputFormat.Equals(OutputFormat.HOCR) ? ".hocr" : ".txt";
+                    for (int i = 0; i < numOfFiles; i++)
+                    {
+                        tempStreams.Add(new MemoryStream());
+                    }
+                    DoTesseractOcr(inputStream, tempStreams, outputFormat, page, true, eventHelper);
+                    if (outputFormat.Equals(OutputFormat.HOCR))
+                    {
+                        IList<Stream> tempTxtStreams = null;
+                        if (GetTesseract4OcrEngineProperties().IsUseTxtToImproveHocrParsing())
+                        {
+                            tempTxtStreams = new List<Stream>();
+                            for (int i = 0; i < numOfFiles; i++)
+                            {
+                                tempTxtStreams.Add(new MemoryStream());
+                            }
+                            DoTesseractOcr(inputStream, tempTxtStreams, OutputFormat.TXT, page, false, eventHelper);
+                        }
+                        IDictionary<int, IList<TextInfo>> pageData = TesseractHelper.ParseHocrFile(new List<FileInfo> { input }, tempStreams, tempTxtStreams, GetTesseract4OcrEngineProperties
+                            ());
+                        if (GetTesseract4OcrEngineProperties().IsPreprocessingImages())
+                        {
+                            imageData.Put(page, pageData.Get(1));
+                        }
+                        else
+                        {
+                            imageData = pageData;
+                        }
+                        result = new AbstractTesseract4OcrEngine.TextInfoTesseractOcrResult(imageData);
+                    }
+                    else
+                    {
+                        foreach (Stream tmpStream in tempStreams)
+                        {
+                            tmpStream.Position = 0;
+                            using (StreamReader reader = new StreamReader(tmpStream))
+                            {
+                                data.Append(reader.ReadToEnd());
+                            }
+                        }
+                        result = new AbstractTesseract4OcrEngine.StringTesseractOcrResult(data.ToString());
+                    }
+                }
+            }
+            catch (System.IO.IOException e)
+            {
+                ITextLogManager.GetLogger(GetType()).LogError(MessageFormatUtil.Format(Tesseract4LogMessageConstant.CANNOT_OCR_INPUT_FILE
+                    , e.Message));
+            }
+            finally
+            {
+                foreach (Stream stream in tempStreams)
+                {
+                    stream.Dispose();
+                }
+            }
+            return result;
+        }
         /// <summary>Creates a temporary file with given extension.</summary>
         /// <param name="extension">
         /// file extension for a new file

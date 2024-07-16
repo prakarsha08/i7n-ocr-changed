@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+	  <TargetFramework>net472</TargetFramework>
+	  <ImplicitUsings>disable</ImplicitUsings>
+	<UseWPF>true</UseWPF>
+	  <LangVersion>9.0</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+	  <PackageReference Include="itext.bouncy-castle-adapter" Version="8.0.6-SNAPSHOT" />
+	  <PackageReference Include="itext.pdfocr.api" Version="3.0.2" />
+	  <PackageReference Include="itext.pdfocr.tesseract4" Version="3.0.2" />
+	  <PackageReference Include="itext7.pdfocr.api" Version="3.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\itext\itext.pdfocr.api\itext.pdfocr.api.csproj" />
+    <ProjectReference Include="..\itext\itext.pdfocr.tesseract4\itext.pdfocr.tesseract4.csproj" />
+  </ItemGroup>
+
+</Project>

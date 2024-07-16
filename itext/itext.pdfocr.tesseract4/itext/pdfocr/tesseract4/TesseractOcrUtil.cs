@@ -495,6 +495,47 @@ namespace iText.Pdfocr.Tesseract4 {
         }
 
         /// <summary>
+        /// Retrieves list of pages from provided image as list of
+        /// <see cref="System.Drawing.Bitmap"/>
+        /// , one per page and updates
+        /// this list for the image using
+        /// <see cref="SetListOfPages(System.Collections.Generic.IList{E})"/>
+        /// method.
+        /// </summary>
+        /// <param name="inputStream">
+        /// input image
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        internal void InitializeImagesListFromTiffForStream(Stream inputStream)
+        {
+            try
+            {
+                Image originalImage = Image.FromStream(inputStream);
+                List<Bitmap> bitmapList = new List<Bitmap>();
+                var xResolution = originalImage.HorizontalResolution;
+                var yResolution = originalImage.VerticalResolution;
+
+                FrameDimension frameDimension = new FrameDimension(originalImage.FrameDimensionsList[0]);
+                int frameCount = originalImage.GetFrameCount(FrameDimension.Page);
+                for (int i = 0; i < frameCount; ++i)
+                {
+                    originalImage.SelectActiveFrame(frameDimension, i);
+                    Bitmap temp = new Bitmap(originalImage);
+                    temp.SetResolution(2 * xResolution, 2 * yResolution);
+                    bitmapList.Add(temp);
+                }
+                SetListOfPages(bitmapList);
+            }
+            catch (Exception e)
+            {
+                ITextLogManager.GetLogger(typeof(TesseractOcrUtil))
+                    .LogError(MessageFormatUtil.Format(
+                        Tesseract4LogMessageConstant.CANNOT_RETRIEVE_PAGES_FROM_IMAGE,
+                        "stream input",
+                        e.Message));
+            }
+        }
+        /// <summary>
         /// Gets requested image page from the provided image.
         /// </summary>
         /// <param name="inputFile">

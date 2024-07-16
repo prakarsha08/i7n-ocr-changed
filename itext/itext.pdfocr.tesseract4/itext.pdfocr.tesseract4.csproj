@@ -46,6 +46,9 @@
     </ContentWithTargetPath>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="itext.bouncy-castle-adapter" Version="8.0.4" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\itext.pdfocr.api\itext.pdfocr.api.csproj" />
   </ItemGroup>
   <ItemGroup>

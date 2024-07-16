@@ -65,6 +65,32 @@ namespace iText.Pdfocr.Tesseract4 {
 //\endcond
 
 //\cond DO_NOT_DOCUMENT
+        /// <summary>Counts number of pages in the provided tiff image.</summary>
+        /// <param name="inputStream">
+        /// input image
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        /// <returns>number of pages in the provided TIFF image</returns>
+        internal static int GetNumberOfPageTiffForStream(Stream inputStream)
+        {
+            int numOfPages = 0;
+            try
+            {
+                using (var image = System.Drawing.Image.FromStream(inputStream))
+                {
+                    var dimension = new System.Drawing.Imaging.FrameDimension(image.FrameDimensionsList[0]);
+                    numOfPages = image.GetFrameCount(dimension);
+                }
+            }
+            catch (Exception e)
+            {
+                ITextLogManager.GetLogger(typeof(iText.Pdfocr.Tesseract4.ImagePreprocessingUtil)).LogError(MessageFormatUtil
+                    .Format(Tesseract4LogMessageConstant.CANNOT_READ_INPUT_IMAGE, e.Message));
+            }
+            return numOfPages;
+        }
+//\endcond
+        //\cond DO_NOT_DOCUMENT
         /// <summary>Checks whether image format is TIFF.</summary>
         /// <param name="inputImage">
         /// input image
@@ -73,6 +99,19 @@ namespace iText.Pdfocr.Tesseract4 {
         /// <returns>true if provided image has 'tiff' or 'tif' extension</returns>
         internal static bool IsTiffImage(FileInfo inputImage) {
             return GetImageType(inputImage) == ImageType.TIFF;
+        }
+//\endcond
+
+//\cond DO_NOT_DOCUMENT
+        /// <summary>Checks whether image format is TIFF.</summary>
+        /// <param name="inputStream">
+        /// input image
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        /// <returns>true if provided image has 'tiff' or 'tif' extension</returns>
+        internal static bool IsTiffImageForStream(Stream inputStream) // New Method
+        {
+            return GetImageTypeForStream(inputStream) == ImageType.TIFF;
         }
 //\endcond
 
@@ -96,6 +135,34 @@ namespace iText.Pdfocr.Tesseract4 {
                     .Format(Tesseract4LogMessageConstant.CANNOT_READ_INPUT_IMAGE, e.Message));
                 throw new PdfOcrInputTesseract4Exception(PdfOcrTesseract4ExceptionMessageConstant.CANNOT_READ_PROVIDED_IMAGE
                     ).SetMessageParams(inputImage.FullName);
+            }
+            return type;
+        }
+        //\endcond
+
+//\cond DO_NOT_DOCUMENT
+        /// <summary>Gets the image type.</summary>
+        /// <param name="inputStream">
+        /// input image
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        /// <returns>
+        /// image type
+        /// <see cref="iText.IO.Image.ImageType"/>
+        /// </returns>
+        internal static ImageType GetImageTypeForStream(Stream inputStream) // New Method
+        {
+            ImageType type;
+            try
+            {
+                type = ImageTypeDetector.DetectImageType(inputStream);
+            }
+            catch (Exception e)
+            {
+                ITextLogManager.GetLogger(typeof(iText.Pdfocr.Tesseract4.ImagePreprocessingUtil)).LogError(MessageFormatUtil
+                    .Format(Tesseract4LogMessageConstant.CANNOT_READ_INPUT_IMAGE, e.Message));
+                throw new PdfOcrInputTesseract4Exception(PdfOcrTesseract4ExceptionMessageConstant.CANNOT_READ_PROVIDED_IMAGE
+                    );
             }
             return type;
         }

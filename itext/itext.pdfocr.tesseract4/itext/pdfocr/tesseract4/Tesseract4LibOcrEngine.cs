@@ -218,6 +218,119 @@ namespace iText.Pdfocr.Tesseract4 {
         }
 //\endcond
 
+//\cond DO_NOT_DOCUMENT
+        /// <summary>
+        /// Performs tesseract OCR using wrapper for Tesseract OCR API for the selected page
+        /// of input image (by default 1st).
+        /// </summary>
+        /// <remarks>
+        /// Performs tesseract OCR using wrapper for Tesseract OCR API for the selected page
+        /// of input image (by default 1st).
+        /// Please note that list of output files is accepted instead of a single file because
+        /// page number parameter is not respected in case of TIFF images not requiring preprocessing.
+        /// In other words, if the passed image is the TIFF image and according to the
+        /// <see cref="Tesseract4OcrEngineProperties"/>
+        /// no preprocessing is needed, each page of the TIFF image is OCRed and the number of output files in the list
+        /// is expected to be same as number of pages in the image, otherwise, only one file is expected
+        /// </remarks>
+        /// <param name="inputStream">
+        /// input image
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        /// <param name="outputFiles">
+        /// 
+        /// <see cref="System.Collections.IList{E}"/>
+        /// of output files
+        /// (one per each page)
+        /// </param>
+        /// <param name="outputFormat">
+        /// selected
+        /// <see cref="OutputFormat"/>
+        /// for tesseract
+        /// </param>
+        /// <param name="pageNumber">number of page to be processed</param>
+        /// <param name="dispatchEvent">indicates if event needs to be dispatched</param>
+        /// <param name="eventHelper">event helper</param>
+        internal override void DoTesseractOcr(Stream inputStream, IList<Stream> outputFiles, OutputFormat outputFormat
+            , int pageNumber, bool dispatchEvent, AbstractPdfOcrEventHelper eventHelper) // New
+        {
+            PdfOcrTesseract4ProductEvent @event = null;
+            if (eventHelper == null)
+            {
+                eventHelper = new Tesseract4EventHelper();
+            }
+            // usage event
+            if (dispatchEvent)
+            {
+                @event = OnEvent(eventHelper);
+            }
+            try
+            {
+                // check tess data path for non ASCII characters
+                ValidateTessDataPath(GetTessData());
+                ValidateLanguages(GetTesseract4OcrEngineProperties().GetLanguages());
+                InitializeTesseract(outputFormat);
+                // if preprocessing is not needed and provided image is tiff,
+                // the image will be paginated and separate pages will be OCRed
+                IList<String> resultList = new List<String>();
+                if (!GetTesseract4OcrEngineProperties().IsPreprocessingImages() && ImagePreprocessingUtil.IsTiffImageForStream(inputStream
+                    )) // New 
+                {
+                    resultList = GetOcrResultForMultiPageForStream(inputStream, outputFormat); // New 
+                }
+                else
+                {
+                    resultList.Add(GetOcrResultForSinglePageForStream(inputStream, outputFormat, pageNumber)); // New 
+                }
+                // list of result strings is written to separate files
+                // (one for each page)
+                for (int i = 0; i < resultList.Count; i++)
+                {
+                    String result = resultList[i];
+                    Stream outputFile = i >= outputFiles.Count ? null : outputFiles[i]; // New
+                    if (result != null && outputFile != null)
+                    {
+                        try
+                        {
+                            using (StreamWriter writer = new StreamWriter(outputFile, System.Text.Encoding.UTF8, 1024, leaveOpen: true)) // New 
+                            {
+                                writer.Write(result);
+                            }
+                        }
+                        catch (System.IO.IOException e)
+                        {
+                            throw new PdfOcrInputTesseract4Exception(PdfOcrTesseract4ExceptionMessageConstant.CANNOT_WRITE_TO_FILE, e);
+                        }
+                    }
+                }
+                // statistics event
+                OnEventStatistics(eventHelper);
+                // confirm on_demand event
+                if (@event != null && @event.GetConfirmationType() == EventConfirmationType.ON_DEMAND)
+                {
+                    eventHelper.OnEvent(new ConfirmEvent(@event));
+                }
+            }
+            catch (PdfOcrTesseract4Exception e)
+            {
+                ITextLogManager.GetLogger(GetType()).LogError(e.Message);
+                throw new PdfOcrTesseract4Exception(e.Message, e);
+            }
+            finally
+            {
+                if (tesseractInstance != null)
+                {
+                    TesseractOcrUtil.DisposeTesseractInstance(tesseractInstance);
+                }
+                if (GetTesseract4OcrEngineProperties().GetPathToUserWordsFile() != null && GetTesseract4OcrEngineProperties
+                    ().IsUserWordsFileTemporary())
+                {
+                    TesseractHelper.DeleteFile(GetTesseract4OcrEngineProperties().GetPathToUserWordsFile());
+                }
+            }
+        }
+        //\endcond
+
         /// <summary>
         /// Validates Tess Data path,
         /// checks if tess data path contains only ASCII charset.
@@ -286,6 +399,56 @@ namespace iText.Pdfocr.Tesseract4 {
         }
 
         /// <summary>
+        /// Gets OCR result from provided multi-page image and returns result as
+        /// list of strings for each page.
+        /// </summary>
+        /// <remarks>
+        /// Gets OCR result from provided multi-page image and returns result as
+        /// list of strings for each page. This method is used for tiff images
+        /// when preprocessing is not needed.
+        /// </remarks>
+        /// <param name="inputStream">
+        /// input image
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        /// <param name="outputFormat">
+        /// selected
+        /// <see cref="OutputFormat"/>
+        /// for tesseract
+        /// </param>
+        /// <returns>
+        /// list of result string that will be written to a temporary files
+        /// later
+        /// </returns>
+        private IList<String> GetOcrResultForMultiPageForStream(Stream inputStream, OutputFormat outputFormat) // New
+        {
+            IList<String> resultList = new List<String>();
+            try
+            {
+                InitializeTesseract(outputFormat);
+                TesseractOcrUtil util = new TesseractOcrUtil();
+                util.InitializeImagesListFromTiffForStream(inputStream);
+                int numOfPages = util.GetListOfPages().Count;
+                for (int i = 0; i < numOfPages; i++)
+                {
+                    String result = util.GetOcrResultAsString(GetTesseractInstance(), util.GetListOfPages()[i], outputFormat);
+                    resultList.Add(result);
+                }
+            }
+            catch (TesseractException e)
+            {
+                String msg = MessageFormatUtil.Format(Tesseract4LogMessageConstant.TESSERACT_FAILED, e.Message);
+                ITextLogManager.GetLogger(GetType()).LogError(msg);
+                throw new PdfOcrTesseract4Exception(PdfOcrTesseract4ExceptionMessageConstant.TESSERACT_FAILED);
+            }
+            finally
+            {
+                TesseractOcrUtil.DisposeTesseractInstance(GetTesseractInstance());
+            }
+            return resultList;
+        }
+
+        /// <summary>
         /// Gets OCR result from provided single page image and preprocesses it if
         /// it is needed.
         /// </summary>
@@ -328,6 +491,68 @@ namespace iText.Pdfocr.Tesseract4 {
                 }
             }
             catch (Exception e) {
+                ITextLogManager.GetLogger(GetType()).LogError(MessageFormatUtil.Format(Tesseract4LogMessageConstant.TESSERACT_FAILED
+                    , e.Message));
+                throw new PdfOcrTesseract4Exception(PdfOcrTesseract4ExceptionMessageConstant.TESSERACT_FAILED);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Gets OCR result from provided single page image and preprocesses it if
+        /// it is needed.
+        /// </summary>
+        /// <param name="inputStream">
+        /// input image
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        /// <param name="outputFormat">
+        /// selected
+        /// <see cref="OutputFormat"/>
+        /// for tesseract
+        /// </param>
+        /// <param name="pageNumber">number of page to be OCRed</param>
+        /// <returns>result as string that will be written to a temporary file later</returns>
+        private String GetOcrResultForSinglePageForStream(Stream inputStream, OutputFormat outputFormat, int pageNumber) // New 
+        {
+            String result = null;
+            try
+            {
+                InitializeTesseract(outputFormat);
+                TesseractOcrUtil util = new TesseractOcrUtil();
+                util.InitializeImagesListFromTiffForStream(inputStream);
+
+                result = util.GetOcrResultAsString(GetTesseractInstance(), util.GetListOfPages()[0], outputFormat);
+
+                //NOTE X
+                //Do we need to do preprocessing or use a buffered image?
+                //Since we pass the images after preprocessing !
+                //If yes, need to add Read image and other functions to use stream.
+                //Testing works fine on this but check witth Haolin
+                //if (result == null)
+                //{
+                //    System.Drawing.Bitmap bufferedImage = ImagePreprocessingUtil.ReadImage(inputImage);
+                //    if (bufferedImage != null)
+                //    {
+                //        try
+                //        {
+                //            result = new TesseractOcrUtil().GetOcrResultAsString(GetTesseractInstance(), bufferedImage, outputFormat);
+                //        }
+                //        catch (Exception e)
+                //        {
+                //            ITextLogManager.GetLogger(GetType()).LogInformation(MessageFormatUtil.Format(Tesseract4LogMessageConstant.
+                //                CANNOT_PROCESS_IMAGE, e.Message));
+                //        }
+                //    }
+                    //if (result == null)
+                    //{
+                    //    // perform ocr using original input image
+                    //    result = new TesseractOcrUtil().GetOcrResultAsString(GetTesseractInstance(), inputImage, outputFormat);
+                    //}
+                }
+            
+            catch (Exception e)
+            {
                 ITextLogManager.GetLogger(GetType()).LogError(MessageFormatUtil.Format(Tesseract4LogMessageConstant.TESSERACT_FAILED
                     , e.Message));
                 throw new PdfOcrTesseract4Exception(PdfOcrTesseract4ExceptionMessageConstant.TESSERACT_FAILED);

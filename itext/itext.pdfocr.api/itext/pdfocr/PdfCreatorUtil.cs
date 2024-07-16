@@ -199,9 +199,104 @@ namespace iText.Pdfocr {
             }
             return images;
         }
-//\endcond
+        //\endcond
 
-//\cond DO_NOT_DOCUMENT
+        //\cond DO_NOT_DOCUMENT
+        /// <summary>
+        /// Retrieves
+        /// <see cref="iText.IO.Image.ImageData"/>
+        /// from the
+        /// input
+        /// <see cref="System.IO.Stream"/>.
+        /// </summary>
+        /// <param name="inputStream">
+        /// input image as
+        /// <see cref="System.IO.FileInfo"/>
+        /// </param>
+        /// <param name="imageRotationHandler">
+        /// image rotation handler
+        /// <see cref="IImageRotationHandler"/>
+        /// </param>
+        /// <returns>
+        /// list of
+        /// <see cref="iText.IO.Image.ImageData"/>
+        /// objects
+        /// (more than one element in the list if it is a multipage tiff)
+        /// </returns>
+        internal static IList<ImageData> GetImageData(Stream inputStream, IImageRotationHandler imageRotationHandler
+            ) // New
+        {
+            IList<ImageData> images = new List<ImageData>();
+            try
+            {
+                ImageType imageType = ImageTypeDetector.DetectImageType(inputStream);
+                inputStream.Position = 0;
+                if (ImageType.TIFF == imageType)
+                {
+                    Stream tempStream = new MemoryStream(ReadAllBytesFromStream(inputStream));
+                    int tiffPages = GetNumberOfPageTiff(tempStream);
+                    for (int page = 0; page < tiffPages; page++)
+                    {
+                        // Reset the stream position for each page read
+                        tempStream.Position = 0;
+                        ImageData imageData = ImageDataFactory.CreateTiff(ReadAllBytesFromStream(tempStream), true, page + 1, true);
+                        if (imageRotationHandler != null)
+                        {
+                            imageData = imageRotationHandler.ApplyRotation(imageData);
+                        }
+                        images.Add(imageData);
+                    }
+                }
+                else
+                {
+                    byte[] bytes = ReadAllBytesFromStream(inputStream);
+                    ImageData imageData = ImageDataFactory.Create(bytes);
+                    if (imageRotationHandler != null)
+                    {
+                        imageData = imageRotationHandler.ApplyRotation(imageData);
+                    }
+                    images.Add(imageData);
+                }
+            }
+            catch (System.IO.IOException e)
+            {
+                LOGGER.LogError(MessageFormatUtil.Format(PdfOcrLogMessageConstant.CANNOT_READ_INPUT_IMAGE, e.Message));
+                throw new PdfOcrInputException(PdfOcrExceptionMessageConstant.CANNOT_READ_INPUT_IMAGE, e);
+            }
+            catch (iText.IO.Exceptions.IOException e)
+            {
+                LOGGER.LogError(MessageFormatUtil.Format(PdfOcrLogMessageConstant.CANNOT_READ_INPUT_IMAGE, e.Message));
+                throw new PdfOcrInputException(PdfOcrExceptionMessageConstant.CANNOT_READ_INPUT_IMAGE, e);
+            }
+            return images;
+        }
+        //\endcond
+
+        //\cond DO_NOT_DOCUMENT
+        /// <summary>
+        /// Reads all bytes from the provided stream and returns them as a byte array.
+        /// The stream position is reset to the beginning after reading.
+        /// </summary>
+        /// <param name="inputStream">
+        /// The input stream to read from.
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        /// <returns>
+        /// A byte array containing all the bytes from the input stream.
+        /// <see cref="System.Byte"/>
+        /// </returns>
+        private static byte[] ReadAllBytesFromStream(Stream inputStream) // New
+        {
+            using (MemoryStream ms = new MemoryStream())
+            {
+                inputStream.CopyTo(ms);
+                inputStream.Position = 0;
+                return ms.ToArray();
+            }
+        }
+        //\endcond
+
+        //\cond DO_NOT_DOCUMENT
         /// <summary>
         /// Calculates the size of the PDF document page according to the provided
         /// <see cref="ScaleMode"/>.
@@ -288,6 +383,34 @@ namespace iText.Pdfocr {
             raf.Close();
             return numOfPages;
         }
-    }
 //\endcond
+
+//\cond DO_NOT_DOCUMENT
+        /// <summary>Counts number of pages in the provided tiff image.</summary>
+        /// <param name="inputStream">
+        /// input image
+        /// <see cref="System.IO.Stream"/>
+        /// </param>
+        /// <returns>number of pages in the provided TIFF image</returns>
+        private static int GetNumberOfPageTiff(Stream inputStream) // New
+        {
+            using (MemoryStream memoryStream = new MemoryStream())
+            {
+                inputStream.CopyTo(memoryStream);
+                byte[] bytes = memoryStream.ToArray();
+
+                RandomAccessSourceFactory factory = new RandomAccessSourceFactory();
+                IRandomAccessSource source = factory.CreateSource(bytes);
+
+                RandomAccessFileOrArray raf = new RandomAccessFileOrArray(source);
+                int numOfPages = TiffImageData.GetNumberOfPages(raf);
+                raf.Close();
+
+                return numOfPages;
+            }
+        }
+//\endcond
+
+    }
+    //\endcond
 }

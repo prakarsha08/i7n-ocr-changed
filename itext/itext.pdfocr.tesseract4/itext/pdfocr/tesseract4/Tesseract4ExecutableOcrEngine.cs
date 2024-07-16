@@ -86,7 +86,10 @@ namespace iText.Pdfocr.Tesseract4 {
         public String GetPathToExecutable() {
             return pathToExecutable;
         }
-
+        internal override void DoTesseractOcr(Stream inputImage, IList<Stream> outputFiles, OutputFormat outputFormat, int pageNumber, bool dispatchEvent, AbstractPdfOcrEventHelper eventHelper)
+        {
+            throw new NotImplementedException();
+        }
         /// <summary>Sets path to tesseract executable.</summary>
         /// <remarks>
         /// Sets path to tesseract executable.

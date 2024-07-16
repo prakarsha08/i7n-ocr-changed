@@ -46,6 +46,10 @@ using iText.Pdfocr.Exceptions;
 using iText.Pdfocr.Logs;
 using iText.Pdfocr.Statistics;
 using iText.Pdfocr.Structuretree;
+using System.Drawing; // New
+using Image = System.Drawing.Image; // New
+using Rectangle = iText.Kernel.Geom.Rectangle; // New
+using Point = iText.Kernel.Geom.Point; // New
 
 namespace iText.Pdfocr {
     /// <summary>
@@ -226,7 +230,95 @@ namespace iText.Pdfocr {
             // create PdfDocument
             return CreatePdfDocument(pdfWriter, pdfOutputIntent, imagesTextData, pdfSequenceId, documentProperties);
         }
+        /// <summary>
+        /// Performs OCR with set parameters using provided
+        /// <see cref="IOcrEngine"/>
+        /// and
+        /// creates PDF using provided
+        /// <see cref="iText.Kernel.Pdf.PdfWriter"/>
+        /// ,
+        /// <see cref="iText.Kernel.Pdf.DocumentProperties"></see>
+        /// and
+        /// <see cref="iText.Kernel.Pdf.PdfOutputIntent"/>.
+        /// </summary>
+        /// <remarks>
+        /// Performs OCR with set parameters using provided
+        /// <see cref="IOcrEngine"/>
+        /// and
+        /// creates PDF using provided
+        /// <see cref="iText.Kernel.Pdf.PdfWriter"/>
+        /// ,
+        /// <see cref="iText.Kernel.Pdf.DocumentProperties"></see>
+        /// and
+        /// <see cref="iText.Kernel.Pdf.PdfOutputIntent"/>
+        /// . PDF/A-3u document will be created if
+        /// provided
+        /// <see cref="iText.Kernel.Pdf.PdfOutputIntent"/>
+        /// is not null.
+        /// <para />
+        /// NOTE that after executing this method you will have a product event from
+        /// the both itextcore and pdfOcr. Therefore, use this method only if you need to work
+        /// with the generated
+        /// <see cref="iText.Kernel.Pdf.PdfDocument"/>
+        /// . If you don't need this, use the
+        /// <see cref="CreatePdfAFile(System.Collections.Generic.IList{E}, System.IO.FileInfo, iText.Kernel.Pdf.PdfOutputIntent)
+        ///     "/>
+        /// method. In this case, only the pdfOcr event will be dispatched.
+        /// </remarks>
+        /// <param name="input">
+        /// 
+        /// <see cref="System.Collections.IList{E}"/>
+        /// of images to be OCRed
+        /// </param>
+        /// <param name="inputImages">
+        /// 
+        /// <see cref="System.Collections.IList{E}"/>
+        /// of images to be OCRed
+        /// </param>
+        /// <param name="pdfWriter">
+        /// the
+        /// <see cref="iText.Kernel.Pdf.PdfWriter"/>
+        /// object
+        /// to write final PDF document to
+        /// </param>
+        /// <param name="documentProperties">document properties</param>
+        /// <param name="pdfOutputIntent">
+        /// 
+        /// <see cref="iText.Kernel.Pdf.PdfOutputIntent"/>
+        /// for PDF/A-3u document
+        /// </param>
+        /// <param name="ocrProcessProperties">
+        /// extra OCR process properties passed to
+        /// <see cref="OcrProcessContext"/>
+        /// </param>
+        /// <returns>
+        /// result PDF/A-3u
+        /// <see cref="iText.Kernel.Pdf.PdfDocument"/>
+        /// object
+        /// </returns>
+        public PdfDocument CreatePdfA(IList<FileInfo> input, IList<Stream> inputStream, PdfWriter pdfWriter, DocumentProperties documentProperties, PdfOutputIntent pdfOutputIntent)
+        {
+            LOGGER.LogInformation(MessageFormatUtil.Format(PdfOcrLogMessageConstant.START_OCR_FOR_IMAGES, inputStream.Count));
+            IDictionary<Stream, FileInfo> streamToFileInfoMapping = new Dictionary<Stream, FileInfo>();
+            SequenceId pdfSequenceId = new SequenceId();
+            OcrPdfCreatorEventHelper ocrEventHelper = new OcrPdfCreatorEventHelper(pdfSequenceId, ocrPdfCreatorProperties.GetMetaInfo());
+            OcrProcessContext ocrProcessContext = new OcrProcessContext(ocrEventHelper);
 
+            IDictionary<Stream, IDictionary<int, IList<TextInfo>>> imagesTextData = new LinkedDictionary<Stream, IDictionary<int, IList<TextInfo>>>();
+            for (int i = 0; i < input.Count; i++)
+            {
+                FileInfo inputFile = input[i];
+                Stream stream = inputStream[i];
+
+                var ocrResult = ocrEngine.DoImageOcr(inputFile, stream);
+                imagesTextData.Put(stream, ocrResult);
+                streamToFileInfoMapping[stream] = inputFile;
+            }
+
+            //IDictionary<FileInfo, IDictionary<int, IList<TextInfo>>> fileInfoDict = ConvertStreamToFileInfoDictionary(imagesTextData, streamToFileInfoMapping);
+            //return CreatePdfDocument(pdfWriter, pdfOutputIntent, fileInfoDict, pdfSequenceId, documentProperties);
+            return CreatePdfDocument(pdfWriter, pdfOutputIntent, imagesTextData, pdfSequenceId, documentProperties);
+        }
         /// <summary>
         /// Performs OCR with set parameters using provided
         /// <see cref="IOcrEngine"/>
@@ -390,7 +482,56 @@ namespace iText.Pdfocr {
             , IOcrProcessProperties ocrProcessProperties) {
             return CreatePdfA(inputImages, pdfWriter, documentProperties, null, ocrProcessProperties);
         }
-
+        /// <summary>
+        /// Performs OCR with set parameters using provided
+        /// <see cref="IOcrEngine"/>
+        /// and
+        /// creates PDF using provided
+        /// <see cref="iText.Kernel.Pdf.PdfWriter"/>.
+        /// </summary>
+        /// <remarks>
+        /// Performs OCR with set parameters using provided
+        /// <see cref="IOcrEngine"/>
+        /// and
+        /// creates PDF using provided
+        /// <see cref="iText.Kernel.Pdf.PdfWriter"/>.
+        /// <para />
+        /// NOTE that after executing this method you will have a product event from
+        /// the both itextcore and pdfOcr. Therefore, use this method only if you need to work
+        /// with the generated
+        /// <see cref="iText.Kernel.Pdf.PdfDocument"/>
+        /// . If you don't need this, use the
+        /// <see cref="CreatePdfFile(System.Collections.Generic.IList{E}, System.IO.FileInfo)"/>
+        /// method. In this case, only the pdfOcr event will be dispatched.
+        /// </remarks>
+        /// <param name="inputImages">
+        /// 
+        /// <see cref="System.Collections.IList{E}"/>
+        /// of images to be OCRed
+        /// </param>
+        /// <param name="inputStream">
+        /// 
+        /// <see cref="System.Collections.IList{E}"/>
+        /// of stream to be OCRed
+        /// </param>
+        /// <param name="pdfWriter">
+        /// the
+        /// <see cref="iText.Kernel.Pdf.PdfWriter"/>
+        /// object
+        /// to write final PDF document to
+        /// </param>
+        /// <param name="documentProperties">document properties</param>
+        /// <param name="ocrProcessProperties">extra OCR process properties passed to OcrProcessContext</param>
+        /// <returns>
+        /// result
+        /// <see cref="iText.Kernel.Pdf.PdfDocument"/>
+        /// object
+        /// </returns>
+        public PdfDocument CreatePdf(IList<FileInfo> inputImages, IList<Stream> inputStream, PdfWriter pdfWriter, DocumentProperties documentProperties
+            )
+        {
+            return CreatePdfA(inputImages, inputStream, pdfWriter, documentProperties, null);
+        }
         /// <summary>
         /// Performs OCR with set parameters using provided
         /// <see cref="IOcrEngine"/>
@@ -702,6 +843,60 @@ namespace iText.Pdfocr {
             return pdfDocument;
         }
 
+        // New 
+        private PdfDocument CreatePdfDocument(PdfWriter pdfWriter, PdfOutputIntent pdfOutputIntent, IDictionary<Stream
+    , IDictionary<int, IList<TextInfo>>> imagesTextData, SequenceId pdfSequenceId, DocumentProperties documentProperties
+    ) 
+        {
+            PdfDocument pdfDocument;
+            bool createPdfA3u = pdfOutputIntent != null;
+            if (createPdfA3u)
+            {
+                pdfDocument = new PdfADocument(pdfWriter, PdfAConformanceLevel.PDF_A_3U, pdfOutputIntent, documentProperties
+                    );
+            }
+            else
+            {
+                pdfDocument = new PdfDocument(pdfWriter, documentProperties);
+            }
+            LinkDocumentIdEvent linkDocumentIdEvent = new LinkDocumentIdEvent(pdfDocument, pdfSequenceId);
+            EventManager.GetInstance().OnEvent(linkDocumentIdEvent);
+            // pdfLang should be set in PDF/A mode
+            bool hasPdfLangProperty = ocrPdfCreatorProperties.GetPdfLang() != null && !ocrPdfCreatorProperties.GetPdfLang
+                ().Equals("");
+            if (createPdfA3u && !hasPdfLangProperty)
+            {
+                LOGGER.LogError(MessageFormatUtil.Format(PdfOcrExceptionMessageConstant.CANNOT_CREATE_PDF_DOCUMENT, PdfOcrLogMessageConstant
+                    .PDF_LANGUAGE_PROPERTY_IS_NOT_SET));
+                throw new PdfOcrException(PdfOcrExceptionMessageConstant.CANNOT_CREATE_PDF_DOCUMENT).SetMessageParams(PdfOcrLogMessageConstant
+                    .PDF_LANGUAGE_PROPERTY_IS_NOT_SET);
+            }
+            // add metadata
+            if (hasPdfLangProperty)
+            {
+                pdfDocument.GetCatalog().SetLang(new PdfString(ocrPdfCreatorProperties.GetPdfLang()));
+            }
+            // set title if it is not empty
+            if (ocrPdfCreatorProperties.GetTitle() != null)
+            {
+                pdfDocument.GetCatalog().SetViewerPreferences(new PdfViewerPreferences().SetDisplayDocTitle(true));
+                PdfDocumentInfo info = pdfDocument.GetDocumentInfo();
+                info.SetTitle(ocrPdfCreatorProperties.GetTitle());
+            }
+            // reset passed font provider
+            ocrPdfCreatorProperties.GetFontProvider().Reset();
+            AddDataToPdfDocument(imagesTextData, pdfDocument, createPdfA3u); // New 
+            // statisctics event about type of created pdf
+            if (ocrEngine is IProductAware && ((IProductAware)ocrEngine).GetProductData() != null)
+            {
+                PdfOcrOutputType eventType = createPdfA3u ? PdfOcrOutputType.PDFA : PdfOcrOutputType.PDF;
+                PdfOcrOutputTypeStatisticsEvent docTypeStatisticsEvent = new PdfOcrOutputTypeStatisticsEvent(eventType, ((
+                    IProductAware)ocrEngine).GetProductData());
+                EventManager.GetInstance().OnEvent(docTypeStatisticsEvent);
+            }
+            return pdfDocument;
+        }
+
         /// <summary>Places provided images and recognized text to the result PDF document.</summary>
         /// <param name="imagesTextData">
         /// map that contains input image
@@ -739,6 +934,108 @@ namespace iText.Pdfocr {
             }
         }
 
+        /// <summary>Places provided images and recognized text to the result PDF document.</summary>
+        /// <param name="imagesTextData">
+        /// map that contains input image
+        /// streams as keys, and as value:
+        /// map pageNumber -&gt; text for the page
+        /// </param>
+        /// <param name="pdfDocument">
+        /// result
+        /// <see cref="iText.Kernel.Pdf.PdfDocument"/>
+        /// </param>
+        /// <param name="createPdfA3u">true if PDF/A3u document is being created</param>
+        private void AddDataToPdfDocument(IDictionary<Stream, IDictionary<int, IList<TextInfo>>> imagesTextData,
+            PdfDocument pdfDocument, bool createPdfA3u) // New
+        {
+            foreach (KeyValuePair<Stream, IDictionary<int, IList<TextInfo>>> entry in imagesTextData)
+            {
+                Stream inputStream = entry.Key;
+                IList<ImageData> imageDataList = PdfCreatorUtil.GetImageData(inputStream, ocrPdfCreatorProperties.GetImageRotationHandler
+                    ());
+                inputStream.Position = 0; 
+                byte[] bytes = ReadAllBytesFromStream(inputStream);
+                ImageData imageDataFromStream = ImageDataFactory.Create(bytes);
+                int newWidth = (int)(imageDataFromStream.GetWidth() * 0.5); // Confirm scaling
+                int newHeight = (int)(imageDataFromStream.GetHeight() * 0.5);
+
+                byte[] scaledBytes = ScaleImage(bytes, newWidth, newHeight);
+                using (Stream scaledImageStream = new MemoryStream(scaledBytes))
+                {
+                    IList<ImageData> newImageDataList = PdfCreatorUtil.GetImageData(scaledImageStream, ocrPdfCreatorProperties.GetImageRotationHandler
+                   ()); 
+                    LOGGER.LogInformation(MessageFormatUtil.Format(PdfOcrLogMessageConstant.NUMBER_OF_PAGES_IN_IMAGE, inputStream
+                        .ToString(), imageDataList.Count));
+                    IDictionary<int, IList<TextInfo>> imageTextData = entry.Value;
+                    if (imageTextData.Keys.Count > 0)
+                    {
+                        for (int page = 0; page < imageDataList.Count; ++page)
+                        {
+                            ImageData imageData = imageDataList[page];
+                            ImageData newImageData = newImageDataList[page]; 
+                            Rectangle imageSize = PdfCreatorUtil.CalculateImageSize(imageData, ocrPdfCreatorProperties.GetScaleMode(),
+                                ocrPdfCreatorProperties.GetPageSize());
+                            if (imageTextData.ContainsKey(page + 1))
+                            {
+                                AddToCanvas(pdfDocument, imageSize, imageTextData.Get(page + 1), newImageData, createPdfA3u);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reads all bytes from the given input stream and returns them as a byte array.
+        /// </summary>
+        /// <param name="inputStream">
+        /// The input stream from which to read all bytes.
+        /// </param>
+        /// <returns>
+        /// A byte array containing all the bytes from the input stream.
+        /// </returns>
+        private static byte[] ReadAllBytesFromStream(Stream inputStream) // New
+        {
+            using (MemoryStream ms = new MemoryStream())
+            {
+                inputStream.CopyTo(ms);
+                inputStream.Position = 0;
+                return ms.ToArray();
+            }
+        }
+
+        /// <summary>
+        /// Scales an image to the specified new width and height and returns the scaled image as a byte array.
+        /// </summary>
+        /// <param name="imageBytes">
+        /// The byte array of the original image.
+        /// </param>
+        /// <param name="newWidth">
+        /// The new width for the scaled image.
+        /// </param>
+        /// <param name="newHeight">
+        /// The new height for the scaled image.
+        /// </param>
+        /// <returns>
+        /// A byte array containing the scaled image.
+        /// </returns>
+        private byte[] ScaleImage(byte[] imageBytes, int newWidth, int newHeight) // New
+        {
+            using (MemoryStream inputMemoryStream = new MemoryStream(imageBytes))
+            using (Image originalImage = Image.FromStream(inputMemoryStream))
+            using (Bitmap scaledBitmap = new Bitmap(newWidth, newHeight))
+            {
+                using (Graphics graphics = Graphics.FromImage(scaledBitmap))
+                {
+                    graphics.DrawImage(originalImage, 0, 0, newWidth, newHeight);
+                }
+                using (MemoryStream outputMemoryStream = new MemoryStream())
+                {
+                    scaledBitmap.Save(outputMemoryStream, System.Drawing.Imaging.ImageFormat.Jpeg);
+                    return outputMemoryStream.ToArray();
+                }
+            }
+        }
         /// <summary>Places given image to canvas to background to a separate layer.</summary>
         /// <param name="imageData">
         /// input image as

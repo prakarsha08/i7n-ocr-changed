@@ -36,6 +36,7 @@ using iText.Pdfocr.Tesseract4.Exceptions;
 using iText.Pdfocr.Tesseract4.Logs;
 using iText.StyledXmlParser.Jsoup.Nodes;
 using iText.StyledXmlParser.Jsoup.Select;
+using System.Diagnostics;
 
 namespace iText.Pdfocr.Tesseract4 {
     /// <summary>Helper class.</summary>
@@ -160,6 +161,93 @@ namespace iText.Pdfocr.Tesseract4 {
                 }
             }
             foreach (iText.StyledXmlParser.Jsoup.Nodes.Node node in unparsedBBoxes.Values) {
+                LOGGER.LogWarning(MessageFormatUtil.Format(Tesseract4LogMessageConstant.CANNOT_PARSE_NODE_BBOX, node.ToString
+                    ()));
+            }
+            return imageData;
+        }
+        //\endcond
+
+        //\cond DO_NOT_DOCUMENT
+        /// <summary>
+        /// Parses each hocr file from the provided list, retrieves text, and
+        /// returns data in the format described below.
+        /// </summary>
+        /// <param name="inputFiles">list of input files</param>
+        /// <param name="inputStreams">list of input streams</param>
+        /// <param name="txtInputFiles">
+        /// list of input files in txt format used to make hocr recognition result more precise.
+        /// This is needed for cases of Thai language or some Chinese dialects
+        /// where every character is interpreted as a single word.
+        /// For more information see https://github.com/tesseract-ocr/tesseract/issues/2702
+        /// </param>
+        /// <param name="tesseract4OcrEngineProperties">
+        /// 
+        /// <see cref="Tesseract4OcrEngineProperties"/>
+        /// </param>
+        /// <returns>
+        /// 
+        /// <see cref="System.Collections.IDictionary{K, V}"/>
+        /// where key is
+        /// <see cref="int?"/>
+        /// representing the number of the page and value is
+        /// <see cref="System.Collections.IList{E}"/>
+        /// of
+        /// <see cref="iText.Pdfocr.TextInfo"/>
+        /// elements where each
+        /// <see cref="iText.Pdfocr.TextInfo"/>
+        /// element contains a word or a line and its 4
+        /// coordinates(bbox)
+        /// </returns>
+        internal static IDictionary<int, IList<TextInfo>> ParseHocrFile(IList<FileInfo> inputFiles, IList<Stream> inputStreams, IList<Stream> txtInputStreams, Tesseract4OcrEngineProperties tesseract4OcrEngineProperties) // New 
+        {
+            IDictionary<int, IList<TextInfo>> imageData = new LinkedDictionary<int, IList<TextInfo>>();
+            IDictionary<String, iText.StyledXmlParser.Jsoup.Nodes.Node> unparsedBBoxes = new LinkedDictionary<String,
+                iText.StyledXmlParser.Jsoup.Nodes.Node>();
+            for (int inputStreamIdx = 0; inputStreamIdx < inputStreams.Count; inputStreamIdx++)
+            {
+                FileInfo inputFile = inputFiles[inputStreamIdx];
+                Stream inputStream = inputStreams[inputStreamIdx]; 
+                IList<String> txt = null;
+                if (txtInputStreams != null)
+                {
+                    Stream txtInputStream = txtInputStreams[inputStreamIdx];
+                    using (StreamReader txtReader = new StreamReader(txtInputStream, System.Text.Encoding.UTF8))
+                    {
+                        txt = new List<string>();
+                        while (!txtReader.EndOfStream)
+                        {
+                            txt.Add(txtReader.ReadLine());
+                        }
+                    }
+                }
+                if (inputStream != null && inputStream.Length > 0)
+                {
+                    inputStream.Position = 0;
+                    Document doc = iText.StyledXmlParser.Jsoup.Jsoup.Parse(inputStream, System.Text.Encoding.UTF8.Name(), inputFile.FullName);
+                    Elements pages = doc.GetElementsByClass(OCR_PAGE);
+                    Debug.WriteLine($"Found {pages.Count} pages");
+
+                    foreach (iText.StyledXmlParser.Jsoup.Nodes.Element page in pages)
+                    {
+                        String[] pageNum = iText.Commons.Utils.StringUtil.Split(page.Id(), PAGE_PREFIX_PATTERN);
+                        int pageNumber = Convert.ToInt32(pageNum[pageNum.Length - 1], System.Globalization.CultureInfo.InvariantCulture);
+                        IList<TextInfo> textData = GetTextData(page, tesseract4OcrEngineProperties, txt, unparsedBBoxes);
+                        Debug.WriteLine($"Page {pageNumber} has {textData.Count} text items");
+
+                        if (textData.Count > 0)
+                        {
+                            if (imageData.ContainsKey(pageNumber))
+                            {
+                                pageNumber = Enumerable.Max(imageData.Keys) + 1;
+                            }
+                            imageData.Put(pageNumber, textData);
+                        }
+                    }
+                }
+            }
+            foreach (iText.StyledXmlParser.Jsoup.Nodes.Node node in unparsedBBoxes.Values)
+            {
                 LOGGER.LogWarning(MessageFormatUtil.Format(Tesseract4LogMessageConstant.CANNOT_PARSE_NODE_BBOX, node.ToString
                     ()));
             }
